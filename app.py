@@ -161,20 +161,35 @@ def authenticate_user(username, password):
         return user
     print(f"Authentication failed for user {username}")
     return None
-    
 
+# Misc functions
+
+def alt_route_redirect(func_name):
+    """Creates a function that redirects to the original endpoint. This is used for connecting alternative routes to the same endpoint without having to duplicate the code or use multiple route decorators on the same function (which can get messy and hard to read with many alternative routes).
+    """
+    return lambda: redirect(url_for(func_name))
+
+
+def connect_alt_routes(func_name, *route_variations):
+    """Connects multiple alternative routes to the same endpoint function. This allows users to access the same page using different URLs (e.g., /login, /log-in, /sign-in, etc.) without having to duplicate code or use multiple route decorators on the same function."""
+    for route in route_variations:
+        print(f"Connecting alternative route '{route}' to endpoint '{func_name}'")
+
+        #Create a new function that redirects to the original endpoint and give it a unique name based on the route to avoid conflicts in Flask's routing system (It took me sooo long to figure out that the issue with the alternative routes not working was that they were all trying to use the same function name and thus overwriting each other in the routing system :,) )
+        func = alt_route_redirect(func_name)
+        func.__name__ = f"{func_name}_alt_{route.strip('/')}"
+        print(f"Created redirect function '{func.__name__}' for route '{route}'") 
+        app.add_url_rule(route, func.__name__, func)
+    
 # Routes
 
 @app.route('/')
-@app.route('/home')
-@app.route('/index')
 @login_required
 def index():
     return render_template('index.html', username=session.get("username"))
 
-@app.route("/log_in")
-def login_alt():
-    return redirect(url_for("login"))
+connect_alt_routes("index", "/index", "/home")
+
 
 @app.route("/login", methods=["GET", "POST"])
 @logged_out_required
@@ -199,10 +214,8 @@ def login():
         return redirect(url_for("login"))
     return render_template("login.html")
 
-@app.route("/signup")
-@app.route("/sign_up")
-def register_alt():
-    return redirect(url_for("register"))
+connect_alt_routes("login", "/log_in", "/log-in", "/sign_in", "/sign-in", "/signin")
+
 
 @app.route("/register", methods=["GET", "POST"])
 @logged_out_required
@@ -230,11 +243,16 @@ def register():
         return redirect(url_for("login"))
     return render_template("register.html")
 
+connect_alt_routes("register", "/sign_up", "/signup", "/sign-up")
+
+
 @app.route("/logout")
 @login_required
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+connect_alt_routes("logout", "/log_out", "/log-out")
 
 if __name__ == '__main__':
     setup_logging()
