@@ -14,7 +14,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY")
 
 app.config["RECAPTCHA_USE_SSL"] = False
-app.config["RECAPTCHA_PUBLIC_KEY"] = os.environ.get("RECAPTCHA_PUBLIC_KEY")
+app.config["RECAPTCHA_PUBLIC_KEY"] = os.environ.get("RECAPTCHA_PUBLIC_KEY") # Behöver tekniskt sett inte vara en miljövariabel men om någon ska skaffa en egen private key så är det smidigare att inte behöva ändra i koden
 app.config["RECAPTCHA_PRIVATE_KEY"] = os.environ.get("RECAPTCHA_PRIVATE_KEY")
 
 # Logging setup
