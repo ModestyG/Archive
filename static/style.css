@@ -8,3 +8,9 @@ body {
     font-size: 1.1em;
     margin-top: 5px;
 }
+
+.post-div{
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-bottom: 10px;
+}

@@ -2,6 +2,63 @@
 {% block title %}{{user.username}}{% endblock %}
 
 {% block body %}
-    <h1>{{ user.username }}'s Page</h1>
-    <p>Welcome {{ user.username }}'s page!</p>
+    {% if session.username == user.username %}
+
+        <h1>Your Collection</h1>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                <p class="error_text">{{ message }}</p>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <button id="new-post">New Post</button>
+
+        <form id="new-post-form" method="post" action="/create-post" style="display:none;">
+
+            <label for="title">Title:</label><br>
+            <input type="text" id="title" name="title" required><br><br>
+
+            <label for="content">Content:</label><br>
+            <textarea id="content" name="content" rows="4" cols="50" required></textarea><br><br>
+
+            <input type="submit" value="Create Post">
+
+            <button type="button" id="cancel-post">Cancel</button>
+        </form>
+
+        
+    {% else %}
+
+        <h1>{{ user.username }}'s Collection</h1>
+
+    {% endif %}
+
+    <hr>
+
+    {% for post in posts %}
+    <div class="post-div">
+        <h2>{{post.title}}</h2>
+        <p>{{post.content}}</p><br>
+    </div>
+    {% endfor %}
+
+    <script>
+        var form = document.getElementById("new-post-form");
+        var newPostButton = document.getElementById("new-post");
+        var cancelPostButton = document.getElementById("cancel-post");
+
+        newPostButton.addEventListener("click", function() {
+            form.style.display = "block";
+            newPostButton.style.display = "none";
+        });
+        cancelPostButton.addEventListener("click", function() {
+            form.style.display = "none";
+            newPostButton.style.display = "block";
+        });
+
+    </script>
+
 {% endblock %}

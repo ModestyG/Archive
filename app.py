@@ -1,3 +1,4 @@
+import bleach
 from functools import wraps
 import os
 import time
@@ -125,6 +126,9 @@ def validate_user_input(username, email, password):
     if not username_without_allowed_specials.isalnum():
         raise ValueError("Username can only contain letters, numbers, and the permitted special characters '-', '.' and '_'")
     
+    if username.isdigit():
+        raise ValueError("Username cannot be entirely numeric")
+    
     if username_taken(username):
         # Will show this for UX reasons despite security risk. The Captcha should help guard against mass enumeration attacks if i implemented it correctly.
         raise ValueError("Username is already taken")
@@ -177,13 +181,50 @@ def connect_alt_routes(func_name, *route_variations):
         func = alt_route_redirect(func_name)
         func.__name__ = f"{func_name}_alt_{route.strip('/')}"
         app.add_url_rule(route, func.__name__, func)
+
+# Post logic
+
+def validate_post_input(title, content):
+    if not title or not content:
+        raise ValueError("Title and content cannot be empty")
+    
+    if len(title) > 127:
+        raise ValueError("Title cannot be longer than 127 characters")
+    
+    if len(content) > 2047:
+        raise ValueError("Content cannot be longer than 2047 characters")
+    
+def sanitize_content(content):
+    allowed_tags = ['b', 'i', 'u', 'em', 'strong', 'a']
+    allowed_attributes = {'a': ['href', 'title', 'target']}
+    cleaned_content = bleach.clean(content, tags=allowed_tags, attributes=allowed_attributes)
+    return cleaned_content
+    
+def get_user_posts(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id, title, content FROM posts WHERE poster_id = %s ORDER BY id DESC", (user_id,))
+    posts = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return posts
+
+def get_all_posts():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT posts.id, posts.title, posts.content, users.username FROM posts JOIN users ON posts.poster_id = users.id ORDER BY posts.id DESC")
+    posts = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return posts
+    
     
 # Routes
 
 @app.route('/')
 @login_required
 def index():
-    return render_template('index.html')
+    return render_template('index.html', posts=get_all_posts())
 
 connect_alt_routes("index", "/index", "/home")
 
@@ -288,15 +329,68 @@ def profile():
 
 connect_alt_routes("profile", "/my-profile", "/my_profile", "/user-profile", "/user_profile")
 
+@app.route("/collections/<target_user>")
+@login_required
+def collections(target_user):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    user = None
+
+    if target_user.isdigit():
+        target_user_id = int(target_user)
+        cursor.execute("SELECT username FROM users WHERE id = %s", (target_user_id,))
+        target_username = cursor.fetchone()
+        if target_username:
+            user = {"username": target_username[0],
+                    "user_id": target_user_id}
+    
+    else:
+        cursor.execute("SELECT id FROM users WHERE username = %s", (target_user,))
+        target_user_id = cursor.fetchone()
+        if target_user_id:
+            user = {"username": target_user, 
+                    "user_id": target_user_id[0]}
+    
+    if not user:
+        cursor.close()
+        conn.close()
+        return redirect(url_for("index"))
+
+    return render_template("user-page.html", user=user, posts=get_user_posts(user["user_id"]))
+
+connect_alt_routes("my_page", "/user-page", "/user_page", "/my_page")
+
 @app.route("/my-page")
 @login_required
 def my_page():
-    user = {
-        "username": session.get("username")
-    }
-    return render_template("user-page.html", user=user)
+    return redirect(url_for("collections", target_user=session["user_id"]))
 
-connect_alt_routes("my_page", "/user-page", "/user_page", "/my_page")
+@app.route("/create-post", methods=["POST"])
+@login_required
+def create_post():
+    title = request.form.get("title", "")
+    content = request.form.get("content", "")
+    if not title or not content:
+        flash("Title and content cannot be empty")
+        return redirect(url_for("my_page"))
+    
+    try:
+        validate_post_input(title, content)
+    except ValueError as e:
+        flash(str(e))
+        return redirect(url_for("my_page"))
+    
+    content = sanitize_content(content)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("INSERT INTO posts (poster_id, title, content) VALUES (%s, %s, %s)", (session["user_id"], title, content))
+    conn.commit()
+    cursor.close()
+    conn.close()
+        
+    return redirect(url_for("my_page"))
+
 
 if __name__ == '__main__':
     setup_logging()
