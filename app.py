@@ -182,6 +182,11 @@ def login():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
+        captcha_response = request.form["g-recaptcha-response"]
+
+        if not captcha_response:
+            flash("Please complete the CAPTCHA")
+            return render_template("login.html")
         
         user = authenticate_user(username, password)
 
