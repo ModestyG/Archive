@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Sign up{% endblock %}
+
+{% block body %}
+    <div class="container">
+        <h1>Sign up</h1>
+        <form method="post">
+
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    {% for message in messages %}
+                    <p class="error_text">{{ message }}</p>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}    
+
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" minlength="3" maxlength="20" required><br><br>
+
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" required><br><br>
+
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" minlength="12" required><br><br>
+
+            <label for="confirm_password">Confirm Password:</label>
+            <input type="password" id="confirm_password" name="confirm_password" minlength="12" required onblur="validate()"><br><br>
+            <p class="error_text" id="password_error" style="display: none;">Passwords do not match</p>
+
+            <div class="g-recaptcha" data-sitekey="{{ config['RECAPTCHA_PUBLIC_KEY'] }}"></div>
+
+            <input type="submit" value="Register" class="btn-login">
+        </form>
+        <p>Already have an account? <a href="{{ url_for('login') }}">Log in here</a>.</p>
+    </div>
+
+    <script>
+        function validate() {
+            var x= document.getElementById("password");
+            var y= document.getElementById("confirm_password");
+            if(x.value==y.value) {
+                document.getElementById("password_error").style.display = "none";
+                return;
+            }
+            document.getElementById("password_error").style.display = "block";
+        }
+    </script>
+    <script src='https://www.google.com/recaptcha/api.js'></script>
+{% endblock %}
