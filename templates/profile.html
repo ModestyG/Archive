@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Profile{% endblock %}
+
+{% block body %}
+    <h1>Profile Page</h1>
+    <p>Welcome to your profile page, {{ session.username }}!</p>
+    <a href="/my-page">Go to My Page</a><br>
+    <hr>
+    <a href="/logout">Logout</a>
+    <hr>
+    <h2>Danger Zone</h2>
+    <p>Deleting your account is irreversible. All your data will be lost.</p>
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+            <p class="error_text">{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}  
+    <form method="post" action="/delete-account">
+        <label for="password">Password:</label>
+        <input type="password" name="password" placeholder="Confirm your password" required><br><br>
+        <input type="submit" value="Delete Account" class="btn-delete">
+    </form>
+{% endblock %}

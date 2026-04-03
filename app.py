@@ -91,6 +91,21 @@ def create_user(username, email, password):
     conn.close()
     print(f"User {username} created successfully")
 
+def authenticate_user(username, password):
+    print(f"Authenticating user with username or email: {username}")
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM users WHERE username = %s OR email = %s", (username, username))
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if user and check_password_hash(user["password"], password):
+        print(f"User {username} authenticated successfully")
+        return user
+    print(f"Authentication failed for user {username}")
+    return None
+
 def validate_user_input(username, email, password):
 
     # Several of these are already handled by HTML form validation, but we want to be sure and not rely on that (and some of them are not, like the allowed special characters in username)
@@ -147,21 +162,6 @@ def email_taken(email):
     conn.close()
     return result is not None
 
-def authenticate_user(username, password):
-    print(f"Authenticating user with username or email: {username}")
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM users WHERE username = %s OR email = %s", (username, username))
-    user = cursor.fetchone()
-    cursor.close()
-    conn.close()
-
-    if user and check_password_hash(user["password"], password):
-        print(f"User {username} authenticated successfully")
-        return user
-    print(f"Authentication failed for user {username}")
-    return None
-
 # Misc functions
 
 def alt_route_redirect(func_name):
@@ -173,12 +173,9 @@ def alt_route_redirect(func_name):
 def connect_alt_routes(func_name, *route_variations):
     """Connects multiple alternative routes to the same endpoint function. This allows users to access the same page using different URLs (e.g., /login, /log-in, /sign-in, etc.) without having to duplicate code or use multiple route decorators on the same function."""
     for route in route_variations:
-        print(f"Connecting alternative route '{route}' to endpoint '{func_name}'")
-
         #Create a new function that redirects to the original endpoint and give it a unique name based on the route to avoid conflicts in Flask's routing system (It took me sooo long to figure out that the issue with the alternative routes not working was that they were all trying to use the same function name and thus overwriting each other in the routing system :,) )
         func = alt_route_redirect(func_name)
         func.__name__ = f"{func_name}_alt_{route.strip('/')}"
-        print(f"Created redirect function '{func.__name__}' for route '{route}'") 
         app.add_url_rule(route, func.__name__, func)
     
 # Routes
@@ -186,7 +183,7 @@ def connect_alt_routes(func_name, *route_variations):
 @app.route('/')
 @login_required
 def index():
-    return render_template('index.html', username=session.get("username"))
+    return render_template('index.html')
 
 connect_alt_routes("index", "/index", "/home")
 
@@ -253,6 +250,53 @@ def logout():
     return redirect(url_for("login"))
 
 connect_alt_routes("logout", "/log_out", "/log-out")
+
+
+@app.route("/delete-account", methods=["POST"])
+@login_required
+def delete_account():
+    user_id = session.get("user_id")
+    password = request.form.get("password", "")
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+    user = cursor.fetchone()
+    if not user:
+        cursor.close()
+        conn.close()
+        flash("User not found, contact support")
+        return redirect(url_for("profile"))
+    if check_password_hash(user["password"], password):
+        cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        session.clear()
+        return redirect(url_for("register"))
+    
+    cursor.close()
+    conn.close()
+    flash("Incorrect password")
+    return redirect(url_for("profile"))
+
+@app.route("/profile")
+@login_required
+def profile():
+    return render_template("profile.html")
+
+connect_alt_routes("profile", "/my-profile", "/my_profile", "/user-profile", "/user_profile")
+
+@app.route("/my-page")
+@login_required
+def my_page():
+    user = {
+        "username": session.get("username")
+    }
+    return render_template("user-page.html", user=user)
+
+connect_alt_routes("my_page", "/user-page", "/user_page", "/my_page")
 
 if __name__ == '__main__':
     setup_logging()

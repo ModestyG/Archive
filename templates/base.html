@@ -10,10 +10,11 @@
     <nav>
         <ul>
             <li><a href="/">Home</a></li>
-            {% if not username %}
+            {% if not session.username %}
                 <li><a href="/login">Login</a></li>
                 <li><a href="/register">Register</a></li>
             {% else %}
+                <li><a href="/my-page">My Page</a></li>
                 <li><a href="/profile">Profile</a></li>
             {% endif %}
         </ul>
