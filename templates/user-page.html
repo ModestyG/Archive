@@ -14,9 +14,9 @@
             {% endif %}
         {% endwith %}
 
-        <button id="new-post">New Post</button>
+        <button id="new-post" onclick="startNewPost()">New Thread</button>
 
-        <form id="new-post-form" method="post" action="/create-post" style="display:none;">
+        <form id="new-post-form" method="post" action="/create-post" style="display:none;" onsubmit="createNewPost(event)">
 
             <label for="title">Title:</label><br>
             <input type="text" id="title" name="title" required><br><br>
@@ -24,9 +24,15 @@
             <label for="content">Content:</label><br>
             <textarea id="content" name="content" rows="4" cols="50" required></textarea><br><br>
 
-            <input type="submit" value="Create Post">
+            <label for="tag-input">Tags:</label><br>
+            <ul id="tags-list">
+            </ul>
+            <input type="text" id="tag-input" name="tag-input" placeholder="Tag">
+            <input type="button" id="add-tag" value="Add Tag"><br><br>
 
-            <button type="button" id="cancel-post">Cancel</button>
+            <input type="submit" value="Create Thread">
+
+            <button type="button" onclick="cancelPost()">Cancel</button>
         </form>
 
         
@@ -42,6 +48,11 @@
     <div class="post-div">
         <h2>{{post.title}}</h2>
         <p>{{post.content}}</p><br>
+        <p>Tags: 
+            {% for tag in post.tags %}
+                <a href="{{ url_for('view_tag', tag_name=tag) }}">#{{ tag }}</a>
+            {% endfor %}
+        </p>
     </div>
     {% endfor %}
 
@@ -50,14 +61,47 @@
         var newPostButton = document.getElementById("new-post");
         var cancelPostButton = document.getElementById("cancel-post");
 
-        newPostButton.addEventListener("click", function() {
+        function startNewPost() {
             form.style.display = "block";
             newPostButton.style.display = "none";
-        });
-        cancelPostButton.addEventListener("click", function() {
+        }
+        
+        function cancelPost(){
             form.style.display = "none";
             newPostButton.style.display = "block";
+        };
+
+        tagsList = document.getElementById("tags-list");
+        addTagButton = document.getElementById("add-tag");
+        tags = [];
+
+        addTagButton.addEventListener("click", function() {
+            newTag = document.getElementById("tag-input").value;
+            newTag = String(newTag)
+            document.getElementById("tag-input").value = "";
+            if (!newTag || tags.includes(newTag)) {
+                return;
+            }
+            tags.push(newTag);
+            var tagItem = document.createElement("li");
+            tagItem.textContent = newTag;
+            tagsList.appendChild(tagItem);
         });
+
+        async function createNewPost(event) {
+            event.preventDefault();
+
+            formData = new FormData(form);
+            formData.set("tags", JSON.stringify(tags));
+
+            const response = await fetch("/create-post", {
+            method: "POST",
+            // Set the FormData instance as the request body
+            body: formData,
+            });
+
+            window.location.reload();
+        }
 
     </script>
 

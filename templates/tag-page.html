@@ -1,21 +1,19 @@
 {% extends 'base.html' %}
 {% block body %}
-    <h1>Welcome to the Tangled Archive, {{ session.username }}!</h1>
-    <p>Explore the collections of our users or create your own!</p>
-    <hr>
-    <h2>Popular Threads</h2>
+    
+    <h1>Posts for tag: {{ tag_name }}</h1>
+
     {% for post in posts %}
     <div class="post-div">
         <h2>{{post.title}}</h2>
         <p>{{post.content}}</p><br>
-        <p>By <a href="{{ url_for('collections', target_user=post.username)}}">{{ post.username }}</a></p>
         <p>Tags: 
             {% for tag in post.tags %}
                 <a href="{{ url_for('view_tag', tag_name=tag) }}">#{{ tag }}</a>
             {% endfor %}
         </p>
+        <p>By <a href="{{ url_for('collections', target_user=post.username)}}">{{ post.username }}</a></p>
     </div>
     {% endfor %}
 
-    <a href="/logout">Logout</a>
 {% endblock %}

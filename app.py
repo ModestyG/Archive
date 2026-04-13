@@ -1,3 +1,5 @@
+import json
+
 import bleach
 from functools import wraps
 import os
@@ -184,7 +186,7 @@ def connect_alt_routes(func_name, *route_variations):
 
 # Post logic
 
-def validate_post_input(title, content):
+def validate_post_input(title, content, tags=[]):
     if not title or not content:
         raise ValueError("Title and content cannot be empty")
     
@@ -193,6 +195,8 @@ def validate_post_input(title, content):
     
     if len(content) > 2047:
         raise ValueError("Content cannot be longer than 2047 characters")
+    
+    
     
 def sanitize_content(content):
     allowed_tags = ['b', 'i', 'u', 'em', 'strong', 'a']
@@ -203,22 +207,79 @@ def sanitize_content(content):
 def get_user_posts(user_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT id, title, content FROM posts WHERE poster_id = %s ORDER BY id DESC", (user_id,))
+
+    cursor.execute("SELECT id, title, content, tags FROM posts WHERE poster_id = %s ORDER BY id DESC", (user_id,))
     posts = cursor.fetchall()
+
+    posts = [dict(post, tags=json.loads(post["tags"]) if post["tags"] else []) for post in posts]
+    print(posts)
+
     cursor.close()
     conn.close()
+    return posts
+
+def get_tag_posts(tag_name=None, tag_id=None):
+    if not tag_name and not tag_id:
+        raise ValueError("Either tag_name or tag_id must be provided")
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    #This query:
+    # 1. Selects relevant post information (ID, title, content, tags) along with the username of the poster.
+    # 2. Joins the posts table with the post_tags table to link posts to their tags.
+    # 3. Joins the tags table to filter posts by the specified tag name.
+    # 4. Joins the users table to get the username of the poster for each post.
+
+    query = """SELECT posts.id, posts.title, posts.content, posts.tags, users.username FROM posts
+    JOIN post_tags ON posts.id = post_tags.post_id 
+    JOIN tags ON post_tags.tag_id = tags.id 
+    JOIN users ON posts.poster_id = users.id"""
+
+    # The WHERE clause depends on what information is provided
+
+    if tag_name:
+        query += " WHERE tags.name = %s ORDER BY posts.id DESC"
+        cursor.execute(query, (tag_name,))
+    
+    else:
+        query += " WHERE tags.id = %s ORDER BY posts.id DESC"
+        cursor.execute(query, (tag_id,))
+    
+    posts = cursor.fetchall()
+    posts = [dict(post, tags=json.loads(post["tags"]) if post["tags"] else []) for post in posts]
     return posts
 
 def get_all_posts():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT posts.id, posts.title, posts.content, users.username FROM posts JOIN users ON posts.poster_id = users.id ORDER BY posts.id DESC")
+    cursor.execute("SELECT posts.id, posts.title, posts.content, posts.tags, users.username FROM posts JOIN users ON posts.poster_id = users.id ORDER BY posts.id DESC")
     posts = cursor.fetchall()
     cursor.close()
     conn.close()
+
+    posts = [dict(post, tags=json.loads(post["tags"]) if post["tags"] else []) for post in posts]
+
     return posts
-    
-    
+
+def get_tag_id(tag):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM tags WHERE name = %s", (tag,))
+    result = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return result[0] if result else None
+
+def get_tag_name(tag_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM tags WHERE id = %s", (tag_id,))
+    result = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return result[0] if result else None
+
 # Routes
 
 @app.route('/')
@@ -370,26 +431,74 @@ def my_page():
 def create_post():
     title = request.form.get("title", "")
     content = request.form.get("content", "")
+    tags = request.form.get("tags")
+    tags = json.loads(tags) if tags else []
+    print(f"Received new post with title: {title}, content: {content}, tags: {tags} from user_id: {session['user_id']}")
+
+    # Validation and sanitization
+
     if not title or not content:
         flash("Title and content cannot be empty")
         return redirect(url_for("my_page"))
     
     try:
-        validate_post_input(title, content)
+        validate_post_input(title, content, tags)
     except ValueError as e:
         flash(str(e))
         return redirect(url_for("my_page"))
     
+    title = sanitize_content(title)
     content = sanitize_content(content)
+    tags = [sanitize_content(tag) for tag in tags]
     
+    # DB operations
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("INSERT INTO posts (poster_id, title, content) VALUES (%s, %s, %s)", (session["user_id"], title, content))
+
+    # Storing the main post data
+
+    if tags:
+        # We store the tags as a JSON array in the posts table to keep capitalization for display purposes, but they will also be stored in the tags table later for searching and filtering purposes.
+        cursor.execute("INSERT INTO posts (poster_id, title, content, tags) VALUES (%s, %s, %s, %s)", (session["user_id"], title, content, json.dumps(tags)))
+    else:
+        cursor.execute("INSERT INTO posts (poster_id, title, content) VALUES (%s, %s, %s)", (session["user_id"], title, content))
+
+    # Getting the ID of the newly created post to associate with tags
+    cursor.execute("SELECT LAST_INSERT_ID() AS post_id")
+    post_id = cursor.fetchone()["post_id"]
+
+    # Storing tags if provided
+    if tags:
+        try:
+            # Preparing the tags for database insertion. Has to be done before loop to catch new duplicates. (Tex: Tag1 and tag1 would now be considered duplicates)
+
+            tags = [tag.strip() for tag in tags if tag.strip()]  # Remove leading/trailing whitespace and empty tags
+            tags = [tag.lower() for tag in tags]  # Convert to lowercase for case-insensitive handling
+            tags = list(set(tags))  # Remove duplicates while preserving order
+
+            for tag in tags:
+                print(f"Processing tag: {tag} for post_id: {post_id}")
+                tag_id = get_tag_id(tag)
+                if not tag_id:
+                    cursor.execute("INSERT INTO tags (name) VALUES (%s)", (tag,))
+                    tag_id = cursor.lastrowid
+
+                cursor.execute("INSERT INTO post_tags (post_id, tag_id) VALUES (%s, %s)", (post_id, tag_id))
+        except Exception as e:
+            app.logger.error(f"Error while inserting tags for post_id {post_id}: {e}")
+
     conn.commit()
     cursor.close()
     conn.close()
         
     return redirect(url_for("my_page"))
+
+@app.route("/tag/<tag_name>")
+@login_required
+def view_tag(tag_name):
+    posts = get_tag_posts(tag_name.lower())
+    return render_template("tag-page.html", posts=posts, tag_name=tag_name)
 
 
 if __name__ == '__main__':
