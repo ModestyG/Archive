@@ -1,4 +1,4 @@
-# Tangle Archive
+# Tangled Archive
 
 Mitt slutprojekt. Jag bestämde mig för att göra min egen version av Tumblr och liknande sidor. Från början hade jag tänkt att det skulle vara ett bokarkiv i stil med AO3 (fast för faktiska böcker) men när jag bytte så orkade jag inte byta namn på alla filer så projektet är nu nicknamat Archive
 
