@@ -132,8 +132,11 @@ def validate_user_input(username, email, password):
         raise ValueError("Username cannot be entirely numeric")
     
     if username_taken(username):
-        # Will show this for UX reasons despite security risk. The Captcha should help guard against mass enumeration attacks if i implemented it correctly.
+        # Will show this for UX reasons despite security risk. The Captcha should help guard against mass enumeration attacks if I implemented it correctly.
         raise ValueError("Username is already taken")
+
+    if len(email) > 64:
+        raise ValueError("Email cannot be longer than 64 characters")
 
     if not validators.email(email):
         raise ValueError("Invalid email address")
@@ -146,9 +149,6 @@ def validate_user_input(username, email, password):
 
     if len(password) < 12:
         raise ValueError("Password must be at least 12 characters long")
-    
-    if len(password) > 512:
-        raise ValueError("Password cannot be longer than 512 characters")
     
 def username_taken(username):
     conn = get_db_connection()
@@ -187,8 +187,8 @@ def connect_alt_routes(func_name, *route_variations):
 # Post logic
 
 def validate_post_input(title, content, tags=[]):
-    if not title or not content:
-        raise ValueError("Title and content cannot be empty")
+    if not title and not content:
+        raise ValueError("Title and content cannot both be empty")
     
     if len(title) > 127:
         raise ValueError("Title cannot be longer than 127 characters")
@@ -196,6 +196,14 @@ def validate_post_input(title, content, tags=[]):
     if len(content) > 2047:
         raise ValueError("Content cannot be longer than 2047 characters")
     
+    for tag in tags:
+        if len(tag) > 63:
+            raise ValueError("Tags cannot be longer than 63 characters")
+        if not tag.strip():
+            raise ValueError("Tags cannot be empty or just whitespace")
+    
+    if len("".join(tags)) > 2047:
+        raise ValueError("Combined length of all tags cannot exceed 2047 characters")
     
     
 def sanitize_content(content):
@@ -203,6 +211,10 @@ def sanitize_content(content):
     allowed_attributes = {'a': ['href', 'title', 'target']}
     cleaned_content = bleach.clean(content, tags=allowed_tags, attributes=allowed_attributes)
     return cleaned_content
+
+def sanitize_tags(tags):
+    bleached_tags = [bleach.clean(tag, tags=[], attributes={}) for tag in tags]
+    return bleached_tags
     
 def get_user_posts(user_id):
     conn = get_db_connection()
@@ -449,7 +461,7 @@ def create_post():
     
     title = sanitize_content(title)
     content = sanitize_content(content)
-    tags = [sanitize_content(tag) for tag in tags]
+    tags = sanitize_tags(tags)
     
     # DB operations
 
