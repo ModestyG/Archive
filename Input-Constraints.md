@@ -47,6 +47,8 @@ Information provided or generated when a new post is created
 
 Length: < 128
 
+Cannot be only whitespace
+
 All tags that are not in the list below should go through sanitization. They can still be part of the title but should not be registered as HTML  
 Allowed HTML tags:  
 - `<b> </b>`
@@ -61,6 +63,8 @@ OBS: Either Title or Content is *Required*, but you do not need to have both
 ### Content ###
 
 Length: < 2048
+
+Cannot be only whitespace
 
 All tags that are not in the list below should go through sanitization. They can still be part of the content but should not be registered as HTML  
 Allowed HTML tags:  
@@ -77,6 +81,8 @@ OBS: Either Title or Content is *Required*, but you do not have to have both
 
 Length: < 64  
 Total Length: < 2048 (This is the maximum total length of all tags on a single post)
+
+Cannot be only whitespace
 
 Tags should be sanitized in such a way that no HTML tags are allowed. They can still be part of the posts tags but should not be registered as HTML 
 
